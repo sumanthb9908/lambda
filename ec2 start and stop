@@ -1,0 +1,47 @@
+import boto3
+import os
+
+ec2 = boto3.client('ec2')
+
+def lambda_handler(event, context):
+    
+    action = event.get("action")
+    environment = event.get("environment")
+
+    if not action or not environment:
+        return {"status": "error", "message": "Missing action or environment"}
+
+    # Filter instances based on Tag:Environment
+    filters = [
+        {
+            'Name': 'tag:Environment',
+            'Values': [environment]
+        },
+        {
+            'Name': 'instance-state-name',
+            'Values': ['running'] if action == 'stop' else ['stopped']
+        }
+    ]
+
+    # Get instances
+    response = ec2.describe_instances(Filters=filters)
+
+    instance_ids = []
+    for reservation in response['Reservations']:
+        for instance in reservation['Instances']:
+            instance_ids.append(instance['InstanceId'])
+
+    if not instance_ids:
+        return {"status": "success", "message": f"No instances to {action} for {environment}"}
+
+    # Start or Stop
+    if action == "start":
+        ec2.start_instances(InstanceIds=instance_ids)
+        message = f"Started instances: {instance_ids}"
+    elif action == "stop":
+        ec2.stop_instances(InstanceIds=instance_ids)
+        message = f"Stopped instances: {instance_ids}"
+    else:
+        return {"status": "error", "message": f"Unknown action {action}"}
+
+    return {"status": "success", "message": message}
