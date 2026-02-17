@@ -1,0 +1,26 @@
+import boto3
+
+cloudfront = boto3.client('cloudfront')
+
+def lambda_handler(event, context):
+    distribution_id = event.get("distribution_id")
+    paths = event.get("paths", ["/*"])  # default invalidate everything
+
+    if not distribution_id:
+        return {"status": "error", "message": "Missing distribution_id"}
+
+    response = cloudfront.create_invalidation(
+        DistributionId=distribution_id,
+        InvalidationBatch={
+            'Paths': {
+                'Quantity': len(paths),
+                'Items': paths
+            },
+            'CallerReference': str(context.aws_request_id)
+        }
+    )
+
+    return {
+        "status": "success",
+        "invalidation_id": response['Invalidation']['Id']
+    }
