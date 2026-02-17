@@ -1,0 +1,32 @@
+import boto3
+from datetime import datetime, timedelta
+
+logs = boto3.client('logs')
+
+def lambda_handler(event, context):
+    # Inputs from event payload
+    log_group = event.get("log_group")           # e.g., "/aws/lambda/my-function"
+    hours = event.get("hours_ago", 24)          # default last 24 hours
+    s3_bucket = event.get("s3_bucket")          # target bucket name
+
+    if not log_group or not s3_bucket:
+        return {"status": "error", "message": "Missing log_group or s3_bucket"}
+
+    # Calculate time range
+    now_ms = int(datetime.now().timestamp() * 1000)
+    start_ms = int((datetime.now() - timedelta(hours=hours)).timestamp() * 1000)
+
+    # Create export task
+    task_name = f"export-{log_group.strip('/').replace('/', '-')}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    destination_prefix = f"cloudwatch-logs/{log_group.strip('/').replace('/', '-')}"
+    
+    response = logs.create_export_task(
+        taskName=task_name,
+        logGroupName=log_group,
+        fromTime=start_ms,
+        to=end_ms,
+        destination=s3_bucket,
+        destinationPrefix=destination_prefix
+    )
+
+    return {"status": "success", "task_id": response["taskId"]}
